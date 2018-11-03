@@ -3,7 +3,6 @@ const express = require('express');
 const Airtable = require('airtable');
 const router = express.Router();
 const NodeGeocoder = require('node-geocoder');
-const Shopify = require('shopify-api-node');
 
 const Stores = require('../models/Stores');
 // const TSStores = require('../models/TSStores');
@@ -17,12 +16,6 @@ const options = {
 }
 
 const geocoder = NodeGeocoder(options);
-
-const shopify = new Shopify({
-  shopName: process.env.SHOP_NAME,
-  apiKey: process.env.API_KEY,
-  password: process.env.PASSWORD,
-});
 
 router.get('/', (req, res) => {
   res.json('WORKING !!!');
@@ -137,67 +130,6 @@ router.get('/get-distance',async (req, res) => {
   } else {
     res.status(404).json({ error: 'No stores in the database'});
   }
-});
-
-router.post('/order-update', (req, res) => {
-  res.status(200).send("OK");
-  if (req.body.note_attributes.length === 0) { return; }
-  const shipping = req.body.shipping_address;
-  const orderID = req.body.id;
-  const orderName = req.body.name;
-  let shopCode;
-  let country;
-  req.body.note_attributes.forEach( async (attribute) => {
-    if (attribute.name.includes('Store Code')) {
-      shopCode = attribute.value;
-      const store = await Stores.find({shop_code: shopCode}).exec();
-      if (store) {
-        if (req.body.tags === '') {
-          tags = 'Click And Collect';
-        } else {
-          tags = req.body.tags + ',Click And Collect';
-        }
-
-        if (store[0].state == 'NZ') {
-          country = 'New Zeland';
-        } else if (store[0].state == 'TAS') {
-          country = 'Tasmania';
-        } else {
-          country = 'Australia';
-        }
-
-        try {
-          await shopify.order.update(orderID, {
-            shipping_address: {
-              first_name: shipping.first_name,
-              address1: store[0].address,
-              address2: store[0].shop,
-              city: store[0].suburb,
-              zip: store[0].zip,
-              province: store[0].state,
-              country: country,
-              last_name: shipping.last_name,
-              latitude: store[0].lat,
-              longitude: store[0].lng
-            },
-            tags: tags
-          }).then(order => { console.log('ORDER UPDATED 🙋') });
-        } catch (e) {
-          console.error("Couldn't update the order", e);
-        }
-
-        // Not saving the order because we will use different solution for pick up notification
-        // const order = await Orders.findOne({order: orderName}).exec();
-        // if (!order) {
-        //   const saveOrder = new Orders({
-        //     order: orderName,
-        //     line_items: JSON.stringify(req.body.line_items)
-        //   });
-        //   saveOrder.save().then(() => console.log('Order ' + orderName + ' saved 🙋 !!!'));
-        // }
-      }
-    }
-  });
 });
 
 module.exports = router;
